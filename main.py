@@ -193,7 +193,7 @@ effective_epsilons = []
 # Run test for each epsilon
 print("Starting BIM attack...")
 #epsilons = [0c, .05, .1, .15, .2, .25, .3]
-epsilons = [.4]
+epsilons = [.5]
 #epsilons = [0, .5] # Maximum peturbation allowed is an epsilon of 0.5
 for eps in epsilons:
     accuracy, eff_epsilons = test(model, device, test_loader, eps)
