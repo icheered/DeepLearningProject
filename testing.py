@@ -5,8 +5,12 @@ from PIL import Image, ImageTk
 import numpy as np
 import tensorflow as tf
 import torch.nn.functional as F
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.inception_v3 import InceptionV3, preprocess_input, decode_predictions
+import torch
+import torchvision.models as models
+import torchvision.transforms as transforms
+from PIL import Image
+# from tensorflow.keras.preprocessing import image
+# from tensorflow.keras.applications.inception_v3 import InceptionV3, preprocess_input, decode_predictions
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -21,7 +25,10 @@ import torch
 
 # Load InceptionV3 model pre-trained on ImageNet
 num_classes = 1000
-model = InceptionV3(weights='imagenet', classes=num_classes)
+# Load pre-trained InceptionV3 model
+model = models.inception_v3(pretrained=True)
+model.eval()
+
 
 # Set random seed
 random.seed(2)
@@ -34,12 +41,13 @@ def get_img_array(file_path):
     img_array = preprocess_input(img_array)
     return img_array
 
-def classify_image(file_path):
-    img_array = get_img_array(file_path)
+def classify_image(image_tensor):
+    # Ensure the tensor requires gradient computation
+    image_tensor.requires_grad = True
 
-    # Make predictions
-    predictions = model.predict(img_array)
-    return predictions
+    # Make predictions using the PyTorch model
+    outputs = model(image_tensor)
+    return outputs
 
 def choose_random_image():
     # Get the current directory of the folder containing images
@@ -92,43 +100,81 @@ def get_label(image_path):
         print(f"Error reading CSV file: {e}")
     return true_label
 
-def get_grad(image_arr, classified_image, label, num_classes=1000):
-    classified_image = np.reshape(classified_image, len(classified_image[0]))
-    true_softmax = np.zeros_like(classified_image)
-    true_softmax[int(label) - 1] = 1
-    classified_image_tensor = torch.tensor(classified_image, requires_grad=True, dtype=torch.float32)
-    true_softmax_tensor = torch.tensor(true_softmax, dtype=torch.float32)
-    loss = F.binary_cross_entropy_with_logits(classified_image_tensor, true_softmax_tensor)
-    image_arr_tensor = torch.tensor(image_arr, requires_grad=True, dtype=torch.float32)
-    print(f"image_arr_tensor: {image_arr_tensor}")
+
+
+def get_img_tensor(file_path):
+    # Load and preprocess the image
+    img = Image.open(file_path)
+    preprocess = transforms.Compose([
+        transforms.Resize(299),
+        transforms.CenterCrop(299),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    img_tensor = preprocess(img).unsqueeze(0)
+    return img_tensor
+
+def classify_image(image_tensor):
+    image_tensor.requires_grad = True
+    outputs = model(image_tensor)
+    return outputs
+
+def get_grad(image_tensor, outputs, label):
+    loss = F.cross_entropy(outputs, torch.tensor([label]))
+    model.zero_grad()
     loss.backward()
-    data_grad = image_arr_tensor.grad
-    print(f"Data grad in get_grad: {data_grad}")
+    data_grad = image_tensor.grad.data
     return data_grad
 
-# FGSM attack code (not working yet)
-def fgsm_attack(image_arr, epsilon, data_grad):
-    image_arr_tensor = torch.tensor(image_arr, dtype=torch.float32, requires_grad=True)
-    data_grad = data_grad.to(image_arr_tensor.device)
+def fgsm_attack(image_tensor, epsilon, data_grad):
     sign_data_grad = data_grad.sign()
-    perturbed_image = image_arr_tensor + epsilon * sign_data_grad
+    perturbed_image = image_tensor + epsilon * sign_data_grad
     perturbed_image = torch.clamp(perturbed_image, 0, 1)
     return perturbed_image
 
 random_image = choose_random_image()
-classified_image = classify_image(random_image)
+image_tensor = get_img_tensor(random_image)
+classified_image = classify_image(image_tensor)
+print(f"Classified image: {classified_image}")
 print("Randomly selected image path:", random_image)
 print(f"Classified as: {decode_predictions(classified_image, top=1)}")
-print(f"Vectorized output: {np.argmax(classified_image)+1}")
-print(f"True class: {get_label(random_image)}")
-image_arr = get_img_array(random_image)
 
-print(f"image arr {image_arr}")
 
-grad = get_grad(image_arr, classified_image, get_label(random_image))
+# print(f"Vectorized output: {np.argmax(classified_image)+1}")
+# print(f"True class: {get_label(random_image)}")
+# image_arr = get_img_array(random_image)
 
-print(f"grad: {grad}")
+# print(f"image arr {image_arr}")
 
-perturbed_image = fgsm_attack(get_img_array(random_image), 0.1, grad)
-print(f"Perturbed image classified as: {decode_predictions(classify_image(perturbed_image.detach().numpy()), top=1)}")
+# grad = get_grad(image_arr, classified_image, get_label(random_image))
 
+# print(f"grad: {grad}")
+
+# perturbed_image = fgsm_attack(get_img_array(random_image), 0.1, grad)
+# print(f"Perturbed image classified as: {decode_predictions(classify_image(perturbed_image.detach().numpy()), top=1)}")
+
+
+
+# def get_grad(image_arr, classified_image, label, num_classes=1000):
+#     classified_image = np.reshape(classified_image, len(classified_image[0]))
+#     true_softmax = np.zeros_like(classified_image)
+#     true_softmax[int(label) - 1] = 1
+#     classified_image_tensor = torch.tensor(classified_image, requires_grad=True, dtype=torch.float32)
+#     true_softmax_tensor = torch.tensor(true_softmax, dtype=torch.float32)
+#     loss = F.binary_cross_entropy_with_logits(classified_image_tensor, true_softmax_tensor)
+    
+#     image_arr_tensor = torch.tensor(image_arr, requires_grad=True, dtype=torch.float32)
+#     print(f"image_arr_tensor: {image_arr_tensor}")
+#     loss.backward()
+#     data_grad = image_arr_tensor.grad
+#     print(f"Data grad in get_grad: {data_grad}")
+#     return data_grad
+
+# # FGSM attack code (not working yet)
+# def fgsm_attack(image_arr, epsilon, data_grad):
+#     image_arr_tensor = torch.tensor(image_arr, dtype=torch.float32, requires_grad=True)
+#     data_grad = data_grad.to(image_arr_tensor.device)
+#     sign_data_grad = data_grad.sign()
+#     perturbed_image = image_arr_tensor + epsilon * sign_data_grad
+#     perturbed_image = torch.clamp(perturbed_image, 0, 1)
+#     return perturbed_image
