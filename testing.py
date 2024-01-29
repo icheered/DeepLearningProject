@@ -4,6 +4,7 @@ from tkinter import Canvas
 from PIL import Image, ImageTk
 import numpy as np
 import tensorflow as tf
+import torch.nn.functional as F
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.inception_v3 import InceptionV3, preprocess_input, decode_predictions
 
@@ -19,21 +20,26 @@ import random
 import torch
 
 # Load InceptionV3 model pre-trained on ImageNet
-model = InceptionV3(weights='imagenet')
+num_classes = 1000
+model = InceptionV3(weights='imagenet', classes=num_classes)
 
 # Set random seed
 random.seed(2)
 
-def classify_image(file_path):
+def get_img_array(file_path):
     # Load and preprocess the image
     img = image.load_img(file_path, target_size=(299, 299))
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
     img_array = preprocess_input(img_array)
+    return img_array
+
+def classify_image(file_path):
+    img_array = get_img_array(file_path)
 
     # Make predictions
     predictions = model.predict(img_array)
-    return decode_predictions(predictions, top=1)
+    return predictions
 
 def choose_random_image():
     # Get the current directory of the folder containing images
@@ -86,34 +92,54 @@ def get_label(image_path):
         print(f"Error reading CSV file: {e}")
     return true_label
 
-loss_fnc = tf.keras.losses.CategoricalCrossentropy()
+def get_grad(image_arr, model, label, num_classes=1000):
+    # Convert image array to tensor and set requires_grad to True
+    image_arr_tensor = torch.tensor(image_arr, requires_grad=True, dtype=torch.float32)
+
+    model.eval()
+    # Forward pass through the model
+    classified_image = model(image_arr_tensor)
+    classified_image = np.reshape(classified_image, len(classified_image[0]))
+
+    # Prepare true label for loss calculation
+    true_softmax = np.zeros(num_classes)
+    true_softmax[int(label) - 1] = 1
+    true_softmax_tensor = torch.tensor(true_softmax, dtype=torch.float32)
+
+    # Loss calculation
+    loss = F.binary_cross_entropy_with_logits(classified_image, true_softmax_tensor)
+
+    # Backward pass
+    loss.backward()
+
+    # The gradient will now be populated
+    data_grad = image_arr_tensor.grad
+
+    return data_grad
 
 # FGSM attack code (not working yet)
-def fgsm_attack(image, epsilon, data_grad):
-    # Collect the element-wise sign of the data gradient
+def fgsm_attack(image_arr, epsilon, data_grad):
+    image_arr_tensor = torch.tensor(image_arr, dtype=torch.float32, requires_grad=True)
+    data_grad = data_grad.to(image_arr_tensor.device)
     sign_data_grad = data_grad.sign()
-    # Create the perturbed image by adjusting each pixel of the input image
-    perturbed_image = image + epsilon*sign_data_grad
-    # Adding clipping to maintain [0,1] range
+    perturbed_image = image_arr_tensor + epsilon * sign_data_grad
     perturbed_image = torch.clamp(perturbed_image, 0, 1)
-    # Return the perturbed image
     return perturbed_image
 
-# Alternative, also not working yet
-def create_adversarial_pattern(input_image, input_label):
-  with tf.GradientTape() as tape:
-    tape.watch(input_image)
-    prediction = model(input_image)
-    loss = loss_fnc(input_label, prediction)
-
-    # Get the gradients of the loss w.r.t to the input image.
-    gradient = tape.gradient(loss, input_image)
-    # Get the sign of the gradients to create the perturbation
-    signed_grad = tf.sign(gradient)
-    return signed_grad
-
-
 random_image = choose_random_image()
+classified_image = classify_image(random_image)
 print("Randomly selected image path:", random_image)
-print("Classified as: " + str(classify_image(random_image)))
+print(f"Classified as: {decode_predictions(classified_image, top=1)}")
+print(f"Vectorized output: {np.argmax(classified_image)+1}")
 print(f"True class: {get_label(random_image)}")
+image_arr = get_img_array(random_image)
+
+print(f"image arr {image_arr}")
+
+grad = get_grad(image_arr, classified_image, get_label(random_image))
+
+print(f"grad: {grad}")
+
+perturbed_image = fgsm_attack(get_img_array(random_image), 0.1, grad)
+print(f"Perturbed image classified as: {decode_predictions(classify_image(perturbed_image.detach().numpy()), top=1)}")
+
