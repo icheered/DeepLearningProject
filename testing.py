@@ -92,29 +92,18 @@ def get_label(image_path):
         print(f"Error reading CSV file: {e}")
     return true_label
 
-def get_grad(image_arr, model, label, num_classes=1000):
-    # Convert image array to tensor and set requires_grad to True
-    image_arr_tensor = torch.tensor(image_arr, requires_grad=True, dtype=torch.float32)
-
-    model.eval()
-    # Forward pass through the model
-    classified_image = model(image_arr_tensor)
+def get_grad(image_arr, classified_image, label, num_classes=1000):
     classified_image = np.reshape(classified_image, len(classified_image[0]))
-
-    # Prepare true label for loss calculation
-    true_softmax = np.zeros(num_classes)
+    true_softmax = np.zeros_like(classified_image)
     true_softmax[int(label) - 1] = 1
+    classified_image_tensor = torch.tensor(classified_image, requires_grad=True, dtype=torch.float32)
     true_softmax_tensor = torch.tensor(true_softmax, dtype=torch.float32)
-
-    # Loss calculation
-    loss = F.binary_cross_entropy_with_logits(classified_image, true_softmax_tensor)
-
-    # Backward pass
+    loss = F.binary_cross_entropy_with_logits(classified_image_tensor, true_softmax_tensor)
+    image_arr_tensor = torch.tensor(image_arr, requires_grad=True, dtype=torch.float32)
+    print(f"image_arr_tensor: {image_arr_tensor}")
     loss.backward()
-
-    # The gradient will now be populated
     data_grad = image_arr_tensor.grad
-
+    print(f"Data grad in get_grad: {data_grad}")
     return data_grad
 
 # FGSM attack code (not working yet)
