@@ -47,7 +47,7 @@ def save_image(original_filename, image_tensor, label, attack_type, epsilon, ste
         f.write(f"{original_filename},{poisoned_filename},{label},{attack_type},{epsilon:.3f},{steps},{prediction},{str(prediction) != str(label)}\n")
 
 # Loop through images
-number_of_images = 10 # len(image_paths)
+number_of_images =  len(image_paths)
 
 for i in tqdm(range(0, number_of_images)):
     cur_image_paths = image_paths[i:i+1]

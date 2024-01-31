@@ -1,7 +1,11 @@
+import random
 
 import numpy as np
 import pandas as pd
 import numpy as np
+
+from tqdm import tqdm
+import pickle
 
 from sklearn.model_selection import train_test_split
 
@@ -9,9 +13,7 @@ from keras import Model
 from keras.preprocessing.image import load_img, img_to_array
 
 from keras.callbacks import ModelCheckpoint
-from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, ZeroPadding2D
-
-
+from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, ZeroPadding2D, Flatten, Dense, Reshape
 
 
 def load_and_preprocess_image(image_path, target_size=(299, 299)):
@@ -20,30 +22,18 @@ def load_and_preprocess_image(image_path, target_size=(299, 299)):
     image = image / 255.0  # Normalize to [0, 1]
     return image
 
-def load_dataset(data_csv, clean_dir, poisoned_dir):
-    clean_images = []
-    poisoned_images = []
-
-    for index, row in data_csv.iterrows():
-        clean_path = f"{clean_dir}/{row['original_filename']}"
-        poisoned_path = f"{poisoned_dir}/{row['poisoned_filename']}"
-
-        clean_img = load_and_preprocess_image(clean_path)
-        poisoned_img = load_and_preprocess_image(poisoned_path)
-
-        clean_images.append(clean_img)
-        poisoned_images.append(poisoned_img)
-
-    return np.array(clean_images), np.array(poisoned_images)
-
-
-def data_generator(clean_images, poisoned_images, batch_size):
+# Data generator
+def data_generator(clean_paths, poisoned_paths, batch_size):
     while True:
-        for i in range(0, len(clean_images), batch_size):
-            yield poisoned_images[i:i+batch_size], clean_images[i:i+batch_size]
+        for i in range(0, len(clean_paths), batch_size):
+            batch_clean = [load_and_preprocess_image(clean_paths[i]) for i in range(i, min(i + batch_size, len(clean_paths)))]
+            batch_poisoned = [load_and_preprocess_image(poisoned_paths[i]) for i in range(i, min(i + batch_size, len(poisoned_paths)))]
+
+            yield np.array(batch_poisoned), np.array(batch_clean)
 
 
-def build_model(input_layer):
+
+def build_full_model(input_layer):
     # Input layer
     inputs = (input_layer)  # Assuming RGB images
 
@@ -85,54 +75,109 @@ def build_model(input_layer):
 
     return decoded
 
+def build_model(input_layer):
+    # Input layer
+    inputs = input_layer  # Assuming RGB images
 
+    # Encoder
+    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
+    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same')(conv1)
+    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same')(conv2)
+
+    # Decoder
+    conv4 = Conv2D(128, (3, 3), activation='relu', padding='same')(conv3)
+    conv5 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv4)
+
+    # Output layer (no need for zero padding if the spatial dimensions haven't been altered)
+    decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(conv5)
+
+    return decoded
+
+def build_shallow_model(input_shape):
+    # Input layer
+    inputs = Input(shape=input_shape)  # Assuming RGB images (299, 299, 3)
+    
+    # Flatten the input
+    flat_input = Flatten()(inputs)
+
+    # Hidden layer
+    encoded = Dense(units=512, activation='relu')(flat_input)
+
+    # Output layer
+    flat_output = Dense(units=299*299*3, activation='sigmoid')(encoded)
+    
+    # Reshape back to the original image size
+    decoded = Reshape(target_shape=input_shape)(flat_output)
+
+    return Model(inputs, decoded)
 
 # Create the model
-input_image=Input(shape=(299, 299, 3))
-decoded=build_model(input_image)
-
-model = Model(input_image, decoded)
+input_image = Input(shape=(299, 299, 3))
+model = Model(input_image, build_model(input_image))
 model.compile(optimizer='adam', loss='MSE')
 model.summary()
 
-#exit()
 
+# input_image=Input(shape=(299, 299, 3))
+# decoded=build_model(input_image)
+# model = Model(input_image, decoded)
+# model.compile(optimizer='adam', loss='MSE')
+# model.summary()
 
+# Create the model
+# input_shape = (299, 299, 3)
+# model = build_shallow_model(input_shape)
+# model.compile(optimizer='adam', loss='MSE')
+# model.summary()
 
-# First column contains original clean filenames, and second column contains poisoned filenames
+# Read the CSV
 data_csv = pd.read_csv('poisoned_data.csv') 
 
 # Locations of the images
 clean_images_dir = "dataset/images"
 poisoned_images_dir = "poisoned_data"
 
-# Load the dataset
-print("Loading dataset")
-clean_imgs, poisoned_imgs = load_dataset(data_csv, clean_images_dir, poisoned_images_dir)
+# Prepare pairs of file paths
+image_pairs = [(f"{clean_images_dir}/{row['original_filename']}", f"{poisoned_images_dir}/{row['poisoned_filename']}") for _, row in data_csv.iterrows()]
+
+# Make a random selection to test the training process. Shuffle the list first.
+random.shuffle(image_pairs)
+image_pairs = image_pairs[:100]
 
 # Split the dataset into training and validation sets
-print("Splitting dataset")
-train_poisoned, val_poisoned, train_clean, val_clean = train_test_split(poisoned_imgs, clean_imgs, test_size=0.2, random_state=42)
+train_pairs, val_pairs = train_test_split(image_pairs, test_size=0.2, random_state=42)
+train_clean_paths, train_poisoned_paths = zip(*train_pairs)
+val_clean_paths, val_poisoned_paths = zip(*val_pairs)
+
+print(f"Training samples: {len(train_clean_paths)}, Validation samples: {len(val_clean_paths)}")
 
 # Create data generators
-print("Creating data generators")
-batch_size = 4  # Adjust based on your GPU capacity
-train_generator = data_generator(train_clean, train_poisoned, batch_size)
-val_generator = data_generator(val_clean, val_poisoned, batch_size)
+batch_size = 8
+train_generator = data_generator(train_clean_paths, train_poisoned_paths, batch_size)
+val_generator = data_generator(val_clean_paths, val_poisoned_paths, batch_size)
 
-steps_per_epoch = len(train_clean) // batch_size
-validation_steps = len(val_clean) // batch_size
+# Calculate steps per epoch and validation steps
+steps_per_epoch = len(train_clean_paths) // batch_size
+validation_steps = len(val_clean_paths) // batch_size
+print(f"Steps per epoch: {steps_per_epoch}, Validation steps: {validation_steps}")
 
-print(f"Steps per epoch: {steps_per_epoch}, validation steps: {validation_steps}")
-
-print("Training model")
-# Train the model
-model.fit(train_generator,
-          steps_per_epoch=len(train_clean) // batch_size,
-          validation_data=val_generator,
-          validation_steps=len(val_clean) // batch_size,
-          epochs=1)  
-
-# Save the model
-print("Saving model")
-model.save("denoiser_model.keras")
+try:
+    # Training the model
+    history = model.fit(train_generator,
+                        steps_per_epoch=steps_per_epoch,
+                        validation_data=val_generator,
+                        validation_steps=validation_steps,
+                        epochs=2) 
+except KeyboardInterrupt:
+    print("\nTraining interrupted by user.")
+finally:
+    # Save the model
+    print("Saving model")
+    model.save("denoiser_model.keras")
+    print("Model saved.")
+    
+    # Save the history
+    print("Saving training history")
+    with open('training_history.pkl', 'wb') as file_pi:
+        pickle.dump(history.history, file_pi)
+    print("Training history saved.")
