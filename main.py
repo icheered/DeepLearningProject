@@ -11,14 +11,14 @@ image_paths, labels = classifier.get_image_paths(include_labels=True)
 batch_size = 25
 print(f"Batch size: {batch_size}, len(image_paths): {len(image_paths)}")
 
-epsilons = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35]
+epsilons = [0.01, 0.02, 0.03, 0.04]
 for eps in epsilons:
     print(f"Epsilon: {eps}")
     original_outputs_tot = []
     original_confs_tot = []
     perturbed_outputs_tot = []
     perturbed_confs_tot = []
-    number_of_images = 100
+    number_of_images = 1000
     for i in range(0, number_of_images, batch_size):
         cur_image_paths = image_paths[i:i+batch_size]
         cur_labels = labels[i:i+batch_size]
