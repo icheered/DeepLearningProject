@@ -9,7 +9,7 @@ print("Using device: {}".format(device))
 image_paths, labels = classifier.get_image_paths(include_labels=True)
 
 batch_size = 25
-epsilons = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35]
+epsilons = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35]
 for eps in epsilons:
     original_outputs_tot = []
     original_confs_tot = []
@@ -29,7 +29,7 @@ for eps in epsilons:
         perturbed_outputs_tot[i:i+batch_size], perturbed_confs_tot[i:i+batch_size] = cur_perturbed_outputs.detach().numpy(), cur_perturbed_confs.detach().numpy()
         print(i)
 
-    output_file = "results_eps" + str(eps*10) + ".csv"
+    output_file = "results_eps" + str(int(eps*100)) + ".csv"
     with open(output_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Original Output", "Original Confidence", "Perturbed Output", "Perturbed Confidence", "Label"])
