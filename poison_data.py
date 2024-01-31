@@ -47,7 +47,7 @@ def save_image(original_filename, image_tensor, label, attack_type, epsilon):
         f.write(f"{original_filename},{poisoned_filename},{label},{attack_type},{epsilon}\n")
 
 # Loop through images
-number_of_images = 3 # For testing, don't do all images
+number_of_images = 100 # For testing, don't do all images
 
 for i in tqdm(range(0, number_of_images)):
     cur_image_paths = image_paths[i:i+1]
@@ -64,23 +64,23 @@ for i in tqdm(range(0, number_of_images)):
     cur_original_outputs, cur_original_confs = classifier.decode_predictions(outputs, include_conf=True)
     image_grads = classifier.get_grad(image_tensors, outputs, cur_labels)
 
-    # # Apply FGSM attack
-    # epsilons = [0.1, 0.2, 0.3]
-    # for eps in epsilons:
-    #     perturbed_image_tensors = classifier.fgsm_attack(image_tensors, eps, image_grads)
-    #     effective_epsilon = (perturbed_image_tensors - image_tensors).abs().max()
-    #     # Save poisoned image
-    #     for j in range(len(cur_image_paths)): 
-    #         # Original image path is the full path, I only want the filename
-    #         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "fgsm", eps)
+    # Apply FGSM attack
+    epsilons = [0.1, 0.2, 0.3]
+    for eps in epsilons:
+        perturbed_image_tensors = classifier.fgsm_attack(image_tensors, eps, image_grads)
+        effective_epsilon = (perturbed_image_tensors - image_tensors).abs().max()
+        # Save poisoned image
+        for j in range(len(cur_image_paths)): 
+            # Original image path is the full path, I only want the filename
+            save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "fgsm", eps)
 
 
     # Apply BIM attack
-    # max_epsilon = 0.3
-    # num_iterations = 10
-    # perturbed_image_tensors, effective_epsilon = classifier.bim_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
-    # for j in range(len(cur_image_paths)): 
-    #     save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "BIM", effective_epsilon)
+    max_epsilon = 0.3
+    num_iterations = 10
+    perturbed_image_tensors, effective_epsilon = classifier.bim_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
+    for j in range(len(cur_image_paths)): 
+        save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "BIM", effective_epsilon)
 
     # Apply PGD attack
     max_epsilon = 0.2
@@ -90,5 +90,5 @@ for i in tqdm(range(0, number_of_images)):
         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "PGD", effective_epsilon)
 
     # Show comparison
-    perturbed_outputs = classifier.classify_perturbed_image(perturbed_image_tensors)
-    classifier.show_comparison(image_tensors, perturbed_image_tensors, outputs, perturbed_outputs, cur_labels[0])
+    # perturbed_outputs = classifier.classify_perturbed_image(perturbed_image_tensors)
+    # classifier.show_comparison(image_tensors, perturbed_image_tensors, outputs, perturbed_outputs, cur_labels[0])
