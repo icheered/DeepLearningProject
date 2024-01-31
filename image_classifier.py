@@ -243,8 +243,6 @@ class ImageClassifier:
         alpha = max_epsilon / num_iterations
 
         for i in range(num_iterations):
-            effective_epsilon = (perturbed_image - original_image).abs().max()
-
             # Apply the perturbation
             perturbed_image = self.fgsm_attack(perturbed_image, alpha, data_grad)            
 
@@ -261,6 +259,56 @@ class ImageClassifier:
                 break
 
             # Update data_grad for next iteration
+            data_grad = self.get_grad(perturbed_image, outputs, labels)
+
+        effective_epsilon = (perturbed_image - original_image).abs().max()
+        return perturbed_image, effective_epsilon.item()
+    
+    def pgd_attack(self, original_image, epsilon, data_grad, labels, num_iterations, random_start=True):
+        """
+        Applies the Projected Gradient Descent (PGD) attack on the given image.
+
+        Parameters:
+        - original_image: the original image tensor.
+        - epsilon: the maximum perturbation allowed.
+        - data_grad: the gradient of the loss w.r.t the input image.
+        - labels: the true labels of the original image.
+        - num_iterations: the number of steps to apply the attack.
+        - alpha: the step size for each iteration.
+        - random_start: if True, starts with a random perturbation.
+
+        Returns:
+        - perturbed_image: the perturbed image tensor.
+        """
+        perturbed_image = original_image.clone()
+        alpha = epsilon / num_iterations
+
+        # If random start is enabled, start with a random point within the epsilon ball
+        if random_start:
+            perturbed_image = perturbed_image + torch.empty_like(original_image).uniform_(-epsilon, epsilon)
+
+        for i in range(num_iterations):
+            # Make sure the perturbation is within the epsilon ball
+            perturbed_image = torch.clamp(perturbed_image, original_image - epsilon, original_image + epsilon)
+
+            # Apply the perturbation
+            perturbed_image = self.fgsm_attack(perturbed_image, alpha, data_grad)
+
+            # Clip the perturbed image to maintain it within the epsilon-ball
+            perturbed_image = torch.clamp(perturbed_image, original_image - epsilon, original_image + epsilon)
+
+            # Classify the perturbed image
+            outputs = self.classify_image(perturbed_image)
+            _, predicted = outputs.max(1)
+            prediction = predicted.item() + 1 # For some reason classifyer is off by 1
+
+            # Check for misclassification
+            if str(prediction) != labels[0]: # THIS ONLY WORKS WITH BATCH SIZE 1
+                print(f"Attack success after {i} iterations")
+                break
+
+            # Update data_grad for next iteration
+            outputs = self.classify_image(perturbed_image)
             data_grad = self.get_grad(perturbed_image, outputs, labels)
 
         effective_epsilon = (perturbed_image - original_image).abs().max()
