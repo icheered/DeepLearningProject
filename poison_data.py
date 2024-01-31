@@ -74,7 +74,7 @@ for i in tqdm(range(0, number_of_images)):
     image_grads = classifier.get_grad(image_tensors, outputs, cur_labels)
 
     # Apply FGSM attack
-    epsilons = [0.1, 0.2, 0.3]
+    epsilons = [0.1, 0.2, 0.3, 0.4, 0.5]
     for eps in epsilons:
         perturbed_image_tensors = classifier.fgsm_attack(image_tensors, eps, image_grads)
         effective_epsilon = (perturbed_image_tensors - image_tensors).abs().max()
@@ -88,15 +88,15 @@ for i in tqdm(range(0, number_of_images)):
 
 
     # Apply BIM attack
-    max_epsilon = 0.3
-    num_iterations = 10
+    max_epsilon = 0.5
+    num_iterations = 20
     perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.bim_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
     for j in range(len(cur_image_paths)): 
         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "BIM", effective_epsilon, steps, prediction)
 
     # # Apply PGD attack
-    max_epsilon = 0.3
-    num_iterations = 10
+    max_epsilon = 0.1
+    num_iterations = 20
     perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.pgd_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
     for j in range(len(cur_image_paths)): 
         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "PGD", effective_epsilon, steps, prediction)
