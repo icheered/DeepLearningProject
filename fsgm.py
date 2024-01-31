@@ -190,15 +190,34 @@ class ImageClassifier:
         return data_grad
 
     def fgsm_attack(self, image_tensor, epsilon, data_grad):
-        #TODO: add denormalize -> perturb -> clip -> normalize
+        
         """
         Returns a perturbed image based on the provided original image(s),
         epsilon (strength of attack) and gradient of the image(s)
         """
         sign_data_grad = data_grad.sign()
         perturbed_image = image_tensor + epsilon * sign_data_grad
+        #perturbed_image = torch.clamp(perturbed_image, 0, 1)
         return perturbed_image
     
+    def tensor_to_image(self, image_tensor):
+        """
+        Returns a PIL image from the provided image tensor
+        """
+        # Denormalize the image tensor
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+        
+        img = image_tensor.squeeze(0)  # Remove the batch dimension
+        img = img.mul(std).add(mean)    # Denormalize
+        img = img.clamp(0, 1)           # Clamp the values to be between 0 and 1
+        img = img.permute(1, 2, 0)      # Rearrange the tensor dimensions to match image format
+
+        # Convert to a PIL image and multiply by 255 as PIL expects pixel values between 0-255
+        img = Image.fromarray((img.detach().numpy() * 255).astype('uint8'))
+        return img
+
+
     def show_image(self, image_tensor, outputs, label):
         # Denormalize the image tensor
         mean = [0.485, 0.456, 0.406]
@@ -237,9 +256,9 @@ class ImageClassifier:
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         axes[0].imshow(original_img)
         axes[0].axis('off')
-        axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
+        #axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
         
         axes[1].imshow(perturbed_img)
         axes[1].axis('off')
-        axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
+        #axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
         plt.show()
