@@ -1,39 +1,52 @@
-import tkinter as tk
-from tkinter import filedialog
-from tkinter import Canvas
-from PIL import Image, ImageTk
+
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.inception_v3 import InceptionV3, preprocess_input, decode_predictions
-
-
-from keras.datasets import fashion_mnist, mnist
+import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Dropout
-from keras.models import Model
+from sklearn.model_selection import train_test_split
 
-from keras.preprocessing.image import load_img
 from keras import Model
-from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from keras.models import load_model
-from keras.optimizers import Adam
-#from keras.utils.vis_utils import plot_model
-from keras.preprocessing.image import ImageDataGenerator
-from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, concatenate, Dropout
+from keras.preprocessing.image import load_img, img_to_array
 
-##############################################################################
-#start #https://www.kaggle.com/code/milan400/fer2013-denoising-using-autoencoder-and-unet
-from keras.models import Model
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Concatenate, Conv2DTranspose
+from keras.callbacks import ModelCheckpoint
+from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, ZeroPadding2D
 
 
-def build_model(input_layer, start_neurons):
+
+
+def load_and_preprocess_image(image_path, target_size=(299, 299)):
+    image = load_img(image_path, target_size=target_size)
+    image = img_to_array(image)
+    image = image / 255.0  # Normalize to [0, 1]
+    return image
+
+def load_dataset(data_csv, clean_dir, poisoned_dir):
+    clean_images = []
+    poisoned_images = []
+
+    for index, row in data_csv.iterrows():
+        clean_path = f"{clean_dir}/{row['original_filename']}"
+        poisoned_path = f"{poisoned_dir}/{row['poisoned_filename']}"
+
+        clean_img = load_and_preprocess_image(clean_path)
+        poisoned_img = load_and_preprocess_image(poisoned_path)
+
+        clean_images.append(clean_img)
+        poisoned_images.append(poisoned_img)
+
+    return np.array(clean_images), np.array(poisoned_images)
+
+
+def data_generator(clean_images, poisoned_images, batch_size):
+    while True:
+        for i in range(0, len(clean_images), batch_size):
+            yield poisoned_images[i:i+batch_size], clean_images[i:i+batch_size]
+
+
+def build_model(input_layer):
     # Input layer
     inputs = (input_layer)  # Assuming RGB images
-    start_neurons=64
+
     # Encoder
     conv1 = Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
     conv1 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv1)
@@ -64,47 +77,62 @@ def build_model(input_layer, start_neurons):
     conv7 = Conv2D(64, (3, 3), activation='relu', padding='same')(up7)
     conv7 = Conv2D(64, (3, 3), activation='relu', padding='same')(conv7)
 
+    # Zero-padding layer to adjust the dimensions
+    padded = ZeroPadding2D(padding=((2, 1), (2, 1)))(conv7)
 
     # Output layer
-    decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(conv7) 
-    
-    
+    decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(padded)
+
     return decoded
 
 
-start_neurons=64
 
+# Create the model
 input_image=Input(shape=(299, 299, 3))
-decoded=build_model(input_image,start_neurons)
+decoded=build_model(input_image)
 
 model = Model(input_image, decoded)
 model.compile(optimizer='adam', loss='MSE')
 model.summary()
 
-
-
-#####################################################################################################
-
-# The inputs are stored in poisoned_data and the outputs are stored in dataset/images
-# The poisoned_data.csv links the poisoned data to the correct output
-
-# Make the split of the data
+#exit()
 
 
 
+# First column contains original clean filenames, and second column contains poisoned filenames
+data_csv = pd.read_csv('poisoned_data.csv') 
 
-##
-#Checkpoint to save the best weights during training
-# model_checkpoint = ModelCheckpoint('u_net_weights.h5', save_best_only=True, save_weights_only=True, mode='min', monitor='val_loss')
-# epochs = 50  # You can adjust this based on your needs
-# model_unet.fit(x_train_noisy, x_train,
-#                 epochs=epochs,
-#                 batch_size=64,
-#                 shuffle=True,
-#                 validation_data=(x_test_noisy, x_test),
-#                 callbacks=[model_checkpoint])
+# Locations of the images
+clean_images_dir = "dataset/images"
+poisoned_images_dir = "poisoned_data"
 
+# Load the dataset
+print("Loading dataset")
+clean_imgs, poisoned_imgs = load_dataset(data_csv, clean_images_dir, poisoned_images_dir)
 
+# Split the dataset into training and validation sets
+print("Splitting dataset")
+train_poisoned, val_poisoned, train_clean, val_clean = train_test_split(poisoned_imgs, clean_imgs, test_size=0.2, random_state=42)
 
+# Create data generators
+print("Creating data generators")
+batch_size = 4  # Adjust based on your GPU capacity
+train_generator = data_generator(train_clean, train_poisoned, batch_size)
+val_generator = data_generator(val_clean, val_poisoned, batch_size)
 
+steps_per_epoch = len(train_clean) // batch_size
+validation_steps = len(val_clean) // batch_size
 
+print(f"Steps per epoch: {steps_per_epoch}, validation steps: {validation_steps}")
+
+print("Training model")
+# Train the model
+model.fit(train_generator,
+          steps_per_epoch=len(train_clean) // batch_size,
+          validation_data=val_generator,
+          validation_steps=len(val_clean) // batch_size,
+          epochs=1)  
+
+# Save the model
+print("Saving model")
+model.save("denoiser_model.keras")

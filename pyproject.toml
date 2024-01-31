@@ -7,14 +7,23 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
-tensorflow = "^2.15"
+tensorflow = "^2.15.0"
 matplotlib = "^3.8.2"
-numpy = "^1.26.3"
-torch = "^2.1.2"
-torchvision = "^0.16.2"
 ipykernel = "^6.28.0"
 ipywidgets = "^8.1.1"
 pandas = "^2.2.0"
+torch = {version = "^2.1.2+rocm5.7", source = "pytorch-gpu-src"}
+pytorch-triton-rocm = {version = "^2.2.0", source = "pytorch-gpu-src"}
+torchvision = {version = "^0.17.0+rocm5.7", source = "pytorch-gpu-src"}
+tqdm = "^4.66.1"
+scikit-learn = "^1.4.0"
+pyarrow = "^15.0.0"
+pillow = "^10.2.0"
+
+[[tool.poetry.source]]
+name = "pytorch-gpu-src"
+url = "https://download.pytorch.org/whl/rocm5.7"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]
