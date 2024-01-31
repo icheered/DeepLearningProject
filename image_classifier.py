@@ -148,7 +148,10 @@ class ImageClassifier:
         if image_tensor.ndim == 3:
             # Add a batch dimension if the tensor is 3D
             image_tensor = image_tensor.unsqueeze(0)
-
+        if image_tensor.grad_fn is not None:
+            image_tensor = image_tensor.detach()
+        
+        self.model.eval()
         image_tensor.requires_grad = True
         outputs = self.model(image_tensor)
         return outputs
@@ -160,6 +163,9 @@ class ImageClassifier:
         Returns a (n,1000) tensor with probabilities for each class
         Here, n is the number of images to classify
         """
+        # Set the model to evaluation mode
+        self.model.eval()
+
         perturbed_image_tensor = perturbed_image_tensor.detach()
         perturbed_image_tensor.requires_grad = True
         outputs = self.model(perturbed_image_tensor)
@@ -182,30 +188,29 @@ class ImageClassifier:
         Returns the gradient data of the provided image tensors using
         (n, 1000) predictions tensor and true labels (string of indices)
         """
-        
-        if image_tensor.ndim == 3:
-            # Add a batch dimension if the tensor is 3D
-            image_tensor = image_tensor.unsqueeze(0)
-        image_tensor.requires_grad = True
+        # Clone the image tensor and set requires_grad to True for the clone
+        grad_tensor = image_tensor.clone().detach()
+        grad_tensor.requires_grad_(True)
 
+        # Forward pass using grad_tensor
+        outputs = self.model(grad_tensor)
+
+        # Process labels and compute loss as before
         labels_tensor = torch.zeros_like(outputs, requires_grad=False, dtype=torch.float32)
         if isinstance(labels, str):
             labels_tensor[0, int(labels) - 1] = 1
         else:
             for i in range(len(labels)):
                 labels_tensor[i, int(labels[i]) - 1] = 1
-        
-        labels_tensor.requires_grad_()
+
         loss = F.cross_entropy(outputs, labels_tensor)
 
+        # Zero out gradients and backpropagate
         self.model.zero_grad()
         loss.backward()
 
-        print(f"Image tensor {image_tensor}")
-        print(f"Outputs {outputs}")
-        print(f"Labels {labels}")
-
-        data_grad = image_tensor.grad.data
+        # Get the gradient from grad_tensor
+        data_grad = grad_tensor.grad.data
         return data_grad
 
     def fgsm_attack(self, image_tensor, epsilon, data_grad):
@@ -216,34 +221,50 @@ class ImageClassifier:
         """
         sign_data_grad = data_grad.sign()
         perturbed_image = image_tensor + epsilon * sign_data_grad
-        #perturbed_image = torch.clamp(perturbed_image, 0, 1)
         return perturbed_image
     
-    def bim_attack(self, max_epsilon, num_iter, data, labels):
-        alpha = max_epsilon / num_iter
-        perturbed_data = data.clone().detach()
+    def bim_attack(self, original_image, max_epsilon, data_grad, labels, num_iterations):
+        """
+        Applies the Basic Iterative Method (BIM) attack on the given image.
 
-        for i in range(num_iter):
-            # Forward pass
-            outputs = self.classify_image(perturbed_data)
+        Parameters:
+        - original_image: the original image tensor.
+        - max_epsilon: the maximum perturbation allowed.
+        - data_grad: the gradient of the loss w.r.t the input image.
+        - labels: the true labels of the original image.
+        - num_iterations: the number of steps to apply the attack.
+        - alpha: the step size for each iteration.
 
-            # Collect data gradient
-            data_grad = self.get_grad(perturbed_data, outputs, labels)
+        Returns:
+        - perturbed_image: the perturbed image tensor.
+        - effective_epsilon: the actual epsilon value used to achieve misclassification.
+        """
+        perturbed_image = original_image.clone()
+        alpha = max_epsilon / num_iterations
 
-            # Call FGSM Attack
-            perturbed_data = self.fgsm_attack(perturbed_data, alpha, data_grad)
+        for i in range(num_iterations):
+            effective_epsilon = (perturbed_image - original_image).abs().max()
 
-            # Check if noise is already enough to make the model fail
-            outputs = self.classify_image(perturbed_data)
-            init_pred = outputs.max(1, keepdim=True)[1]
-            if init_pred.item() != labels.item():
+            # Apply the perturbation
+            perturbed_image = self.fgsm_attack(perturbed_image, alpha, data_grad)            
+
+            # Clip the perturbed image to maintain it within the epsilon-ball, and also within the valid pixel range
+            perturbed_image = torch.clamp(perturbed_image, original_image - max_epsilon, original_image + max_epsilon)
+
+            # Classify the perturbed image
+            outputs = self.classify_image(perturbed_image)
+            _, predicted = outputs.max(1)
+            prediction = predicted.item() + 1 # For some reason classifyer is off by 1
+
+            # Check for misclassification
+            if str(prediction) != labels[0]: # THIS ONLY WORKS WITH BATCH SIZE 1
                 break
 
-        effective_epsilon = (perturbed_data - data).abs().max()
-        return perturbed_data, effective_epsilon.item()
+            # Update data_grad for next iteration
+            data_grad = self.get_grad(perturbed_image, outputs, labels)
 
-
-        
+        effective_epsilon = (perturbed_image - original_image).abs().max()
+        return perturbed_image, effective_epsilon.item()
     
     def tensor_to_image(self, image_tensor):
         """
@@ -293,17 +314,19 @@ class ImageClassifier:
         # Get category and confidences
         original_output, original_conf = self.decode_predictions(outputs, include_conf=True)
         perturbed_output, perturbed_conf = self.decode_predictions(perturbed_outputs, include_conf=True)
+        
         original_pred_class = self.categories[int(original_output)-1]
         perturbed_pred_class = self.categories[int(perturbed_output)-1]
+
         act_class = self.categories[int(label)-1]
 
         # Display the image
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         axes[0].imshow(original_img)
         axes[0].axis('off')
-        #axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
+        axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf[0]:.3f}). Actual class: {act_class}")
         
         axes[1].imshow(perturbed_img)
         axes[1].axis('off')
-        #axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
+        axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf[0]:.3f})")
         plt.show()
