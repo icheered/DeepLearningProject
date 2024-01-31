@@ -242,6 +242,14 @@ class ImageClassifier:
         perturbed_image = original_image.clone()
         alpha = max_epsilon / num_iterations
 
+        outputs = self.classify_image(perturbed_image)
+        _, predicted = outputs.max(1)
+        prediction = predicted.item() + 1 # For some reason classifyer is off by 1
+
+        if str(prediction) != labels[0]: # THIS ONLY WORKS WITH BATCH SIZE 1
+            print(f"ORIGINAL IMAGE MISCLASSIFIED: {prediction} != {labels[0]}")
+
+
         for i in range(num_iterations):
             # Apply the perturbation
             perturbed_image = self.fgsm_attack(perturbed_image, alpha, data_grad)            
@@ -262,7 +270,7 @@ class ImageClassifier:
             data_grad = self.get_grad(perturbed_image, outputs, labels)
 
         effective_epsilon = (perturbed_image - original_image).abs().max()
-        return perturbed_image, effective_epsilon.item()
+        return perturbed_image, effective_epsilon.item(), i, prediction
     
     def pgd_attack(self, original_image, epsilon, data_grad, labels, num_iterations, random_start=True):
         """
@@ -282,6 +290,11 @@ class ImageClassifier:
         """
         perturbed_image = original_image.clone()
         alpha = epsilon / num_iterations
+
+        # Classify the perturbed image
+        outputs = self.classify_image(perturbed_image)
+        _, predicted = outputs.max(1)
+        prediction = predicted.item() + 1 # For some reason classifyer is off by 1
 
         # If random start is enabled, start with a random point within the epsilon ball
         if random_start:
@@ -304,7 +317,6 @@ class ImageClassifier:
 
             # Check for misclassification
             if str(prediction) != labels[0]: # THIS ONLY WORKS WITH BATCH SIZE 1
-                print(f"Attack success after {i} iterations")
                 break
 
             # Update data_grad for next iteration
@@ -312,7 +324,7 @@ class ImageClassifier:
             data_grad = self.get_grad(perturbed_image, outputs, labels)
 
         effective_epsilon = (perturbed_image - original_image).abs().max()
-        return perturbed_image, effective_epsilon.item()
+        return perturbed_image, effective_epsilon.item(), i, prediction
     
     def tensor_to_image(self, image_tensor):
         """
