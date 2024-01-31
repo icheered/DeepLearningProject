@@ -1,11 +1,4 @@
 original_filename,poisoned_filename,label,attack_type,epsilon
-30e132285c2e960f.png,9382dffx1kVZQ2tqMnMc.png,912,fgsm,0.2
-84af93c72781b7f0.png,LRkBOzZU3G8xI7CGr5c3.png,438,fgsm,0.2
-be95f5be87f6fadd.png,bxD7u6yB54HkJlpoblul.png,459,fgsm,0.2
-18d5f99fe237a306.png,iGGxGRJl5CYAVH66WxYL.png,815,fgsm,0.2
-477bf90e7413df23.png,wx29Ck9WzTVDPHpFr7FG.png,542,fgsm,0.2
-7d833ac8ab852bd2.png,G1YwQ4D55DwKU6JUDFQo.png,52,fgsm,0.2
-e8c99e0220ab46d2.png,8u0S1k46NrX6Ett9ZT1G.png,591,fgsm,0.2
-0ed355357757528d.png,JHGPNLAtUnFGx7RN4eY0.png,763,fgsm,0.2
-2f7d5ff922af55c4.png,vUa60mVgdKPdrLoR46gW.png,481,fgsm,0.2
-556d8b457b94c285.png,Hi2rp0n84dB5TWcdxxlp.png,747,fgsm,0.2
+30e132285c2e960f.png,9382dffx1kVZQ2tqMnMc.png,912,fgsm,0.1
+30e132285c2e960f.png,LRkBOzZU3G8xI7CGr5c3.png,912,fgsm,0.2
+30e132285c2e960f.png,bxD7u6yB54HkJlpoblul.png,912,fgsm,0.3

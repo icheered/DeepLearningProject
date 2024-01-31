@@ -1,4 +1,4 @@
-from fsgm import ImageClassifier
+from image_classifier import ImageClassifier
 import torch
 import csv
 
