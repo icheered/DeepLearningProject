@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 
 from keras import Model
 from keras.preprocessing.image import load_img, img_to_array
+from keras.callbacks import Callback
 
 from keras.callbacks import ModelCheckpoint
 from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, ZeroPadding2D, Flatten, Dense, Reshape
@@ -142,7 +143,6 @@ image_pairs = [(f"{clean_images_dir}/{row['original_filename']}", f"{poisoned_im
 
 # Make a random selection to test the training process. Shuffle the list first.
 random.shuffle(image_pairs)
-image_pairs = image_pairs[:100]
 
 # Split the dataset into training and validation sets
 train_pairs, val_pairs = train_test_split(image_pairs, test_size=0.2, random_state=42)
@@ -152,7 +152,8 @@ val_clean_paths, val_poisoned_paths = zip(*val_pairs)
 print(f"Training samples: {len(train_clean_paths)}, Validation samples: {len(val_clean_paths)}")
 
 # Create data generators
-batch_size = 8
+batch_size = 16
+epochs = 10
 train_generator = data_generator(train_clean_paths, train_poisoned_paths, batch_size)
 val_generator = data_generator(val_clean_paths, val_poisoned_paths, batch_size)
 
@@ -161,13 +162,42 @@ steps_per_epoch = len(train_clean_paths) // batch_size
 validation_steps = len(val_clean_paths) // batch_size
 print(f"Steps per epoch: {steps_per_epoch}, Validation steps: {validation_steps}")
 
+
+class BatchHistory(Callback):
+    def on_train_begin(self, logs=None):
+        self.history = {'loss': [], 'val_loss': []}
+
+    def on_batch_end(self, batch, logs=None):
+        # Update the history dictionary with the loss and accuracy for the batch
+        for k, v in logs.items():
+            if k in self.history:
+                self.history[k].append(v)
+
+    def on_epoch_end(self, epoch, logs=None):
+        # Save the history after each epoch
+        with open('batch_training_history.pkl', 'wb') as file_pi:
+            pickle.dump(self.history, file_pi)
+
+# Create an instance of the custom callback
+batch_history = BatchHistory()
+
+# Create the ModelCheckpoint callback to save the model after each epoch
+model_checkpoint = ModelCheckpoint(
+    'denoiser_model_epoch{epoch:02d}.keras', 
+    save_best_only=False, 
+    verbose=1
+)
+
 try:
     # Training the model
-    history = model.fit(train_generator,
-                        steps_per_epoch=steps_per_epoch,
-                        validation_data=val_generator,
-                        validation_steps=validation_steps,
-                        epochs=2) 
+    model.fit(
+        train_generator,
+        steps_per_epoch=steps_per_epoch,
+        validation_data=val_generator,
+        validation_steps=validation_steps,
+        epochs=epochs,
+        callbacks=[batch_history, model_checkpoint]
+    )
 except KeyboardInterrupt:
     print("\nTraining interrupted by user.")
 finally:
@@ -175,9 +205,3 @@ finally:
     print("Saving model")
     model.save("denoiser_model.keras")
     print("Model saved.")
-    
-    # Save the history
-    print("Saving training history")
-    with open('training_history.pkl', 'wb') as file_pi:
-        pickle.dump(history.history, file_pi)
-    print("Training history saved.")
