@@ -119,7 +119,7 @@ def build_model(input_layer):
 
 # Create the model
 input_image = Input(shape=(299, 299, 3))
-model = Model(input_image, build_model(input_image))
+model = Model(input_image, build_model_small(input_image))
 model.compile(optimizer='adam', loss='MSE')
 model.summary()
 
@@ -158,7 +158,7 @@ print(f"Training samples: {len(train_clean_paths)}, Validation samples: {len(val
 
 # Create data generators
 batch_size = 16
-epochs = 10
+epochs = 2
 train_generator = data_generator(train_clean_paths, train_poisoned_paths, batch_size)
 val_generator = data_generator(val_clean_paths, val_poisoned_paths, batch_size)
 
