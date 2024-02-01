@@ -89,7 +89,7 @@ for i in tqdm(range(0, number_of_images)):
 
     # Apply BIM attack
     max_epsilon = 0.05
-    num_iterations = 20
+    num_iterations = 10
     perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.bim_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
     for j in range(len(cur_image_paths)): 
         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "BIM", effective_epsilon, steps, prediction)
