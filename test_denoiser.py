@@ -24,7 +24,7 @@ def postprocess_image(image):
     return image
 
 # Load the model
-model = load_model("denoiser_model.keras")
+model = load_model("denoiser_model_epoch06.keras")
 
 
 # List all files in the poisoned_images_dir
