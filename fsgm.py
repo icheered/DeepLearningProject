@@ -144,6 +144,7 @@ class ImageClassifier:
         Returns a (n,1000) tensor with probabilities for each class
         Here, n is the number of images to classify
         """
+        self.model.eval()
         image_tensor.requires_grad = True
         outputs = self.model(image_tensor)
         return outputs
@@ -154,6 +155,7 @@ class ImageClassifier:
         Returns a (n,1000) tensor with probabilities for each class
         Here, n is the number of images to classify
         """
+        self.model.eval()
         perturbed_image_tensor = perturbed_image_tensor.detach()
         perturbed_image_tensor.requires_grad = True
         outputs = self.model(perturbed_image_tensor)
@@ -176,17 +178,29 @@ class ImageClassifier:
         Returns the gradient data of the provided image tensors using
         (n, 1000) predictions tensor and true labels (string of indices)
         """
+        # Clone the image tensor and set requires_grad to True for the clone
+        grad_tensor = image_tensor.clone().detach()
+        grad_tensor.requires_grad_(True)
+
+        # Forward pass using grad_tensor
+        outputs = self.model(grad_tensor)
+
+        # Process labels and compute loss as before
         labels_tensor = torch.zeros_like(outputs, requires_grad=False, dtype=torch.float32)
         if isinstance(labels, str):
             labels_tensor[0, int(labels) - 1] = 1
         else:
             for i in range(len(labels)):
                 labels_tensor[i, int(labels[i]) - 1] = 1
-        labels_tensor.requires_grad_()
+
         loss = F.cross_entropy(outputs, labels_tensor)
+
+        # Zero out gradients and backpropagate
         self.model.zero_grad()
         loss.backward()
-        data_grad = image_tensor.grad.data
+
+        # Get the gradient from grad_tensor
+        data_grad = grad_tensor.grad.data
         return data_grad
 
     def fgsm_attack(self, image_tensor, epsilon, data_grad):
@@ -196,9 +210,75 @@ class ImageClassifier:
         epsilon (strength of attack) and gradient of the image(s)
         """
         sign_data_grad = data_grad.sign()
-        perturbed_image = image_tensor + epsilon * sign_data_grad
-        #perturbed_image = torch.clamp(perturbed_image, 0, 1)
-        return perturbed_image
+        perturbed_image = self.denormalize(image_tensor) + epsilon * sign_data_grad
+        perturbed_image = torch.clamp(perturbed_image, 0, 1)
+        return self.normalize(perturbed_image)
+    
+    def denormalize(self, image_tensor):
+        # Denormalize the image tensor
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+        
+        img = image_tensor.mul(std).add(mean)    # Denormalize
+        img = img.clamp(0, 1)                    # Clamp the values to be between 0 and 1
+        return img
+    
+    def normalize(self, image_tensor):
+        preprocess = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        return preprocess(image_tensor)
+    
+    def adam_attack(self, image_path, epsilon, T, eta=1e-8):
+        alpha = epsilon / T
+        y = self.get_label(image_path)
+        image_t0 = self.denormalize(self.get_img_tensor(image_path))
+        print(image_t0)
+        image_t = image_t0.clone()
+        # image_t = image_t.detach()
+        # image_t.requires_grad = True
+        g0 = 0 # Redundant
+        m0 = 0 # Redundant
+        v0 = 0 # Redundant
+        dt = 0
+        beta1 = 0.9
+        beta2 = 0.999
+
+        # Step 3 - Iterate over time
+        for t in range(1, T):
+            # Step 4 - Find gradient value of step t
+            if t == 1:
+                gt = self.get_grad(image_t0, self.classify_image(image_t0), y)
+            else:
+                gt = self.get_grad(image_t, self.classify_perturbed_image(image_t), y)
+
+            # Step 5 & 6- Update biased first and second moment estimate
+            if t == 1:
+                mt = (1-beta1) * gt
+                vt = (1-beta2) * torch.square(gt)
+            else: 
+                mt = beta1 * mt + (1-beta1) * gt
+                vt = beta2 * vt + (1-beta2) * torch.square(gt)
+
+            # Step 7 & 8 - Compute bias-corrected first and second raw moment estimate
+            
+            mt_hat = mt / (1- beta1 ** t)
+            vt_hat = vt / (1- beta2 ** t)
+
+            # Step 9 - Obtain pertubation direction
+            dt = mt_hat / (torch.sqrt(vt_hat) + eta)
+
+            # Step 10 - Normalize and scale pertubation vector
+            n = torch.prod(torch.tensor(dt.shape))
+            
+            dt_hat =  n * dt / torch.norm(dt, p=1)
+
+            # Step 11 - Apply pertubation and clip
+            if t == 1:
+                image_t = torch.clip(image_t0 + alpha * dt_hat, 0, 1) # Correct clipping bounds
+            else:
+                image_t = torch.clip(image_t + alpha * dt_hat, 0, 1) # Correct clipping bounds
+
+        return self.normalize(image_t)
+
     
     def tensor_to_image(self, image_tensor):
         """
@@ -256,9 +336,9 @@ class ImageClassifier:
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         axes[0].imshow(original_img)
         axes[0].axis('off')
-        #axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
+        # axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
         
         axes[1].imshow(perturbed_img)
         axes[1].axis('off')
-        #axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
+        # axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
         plt.show()
