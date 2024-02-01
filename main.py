@@ -1,6 +1,8 @@
 from fsgm import ImageClassifier
 import torch
 import csv
+from tqdm import tqdm
+
 
 classifier = ImageClassifier()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -11,7 +13,8 @@ image_paths, labels = classifier.get_image_paths(include_labels=True)
 batch_size = 25
 print(f"Batch size: {batch_size}, len(image_paths): {len(image_paths)}")
 
-epsilons = [0.01, 0.02, 0.03, 0.04]
+all_results = []
+epsilons = [0.01, 0.02, 0.03, 0.04, 0.05]
 for eps in epsilons:
     print(f"Epsilon: {eps}")
     original_outputs_tot = []
@@ -19,7 +22,7 @@ for eps in epsilons:
     perturbed_outputs_tot = []
     perturbed_confs_tot = []
     number_of_images = 1000
-    for i in range(0, number_of_images, batch_size):
+    for i in tqdm(range(0, number_of_images, batch_size)):
         cur_image_paths = image_paths[i:i+batch_size]
         cur_labels = labels[i:i+batch_size]
         image_tensors = classifier.get_img_tensors(cur_image_paths)
@@ -31,20 +34,26 @@ for eps in epsilons:
         perturbed_outputs = classifier.classify_perturbed_image(perturbed_image_tensors)
         cur_perturbed_outputs, cur_perturbed_confs = classifier.decode_predictions(perturbed_outputs, include_conf=True)
         perturbed_outputs_tot[i:i+batch_size], perturbed_confs_tot[i:i+batch_size] = cur_perturbed_outputs.detach().numpy(), cur_perturbed_confs.detach().numpy()
-        print(i)
 
-    output_file = "results_eps" + str(int(eps*100)) + ".csv"
-    with open(output_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Original Output", "Original Confidence", "Perturbed Output", "Perturbed Confidence", "Label"])
-        for i in range(len(original_outputs_tot)):
-            writer.writerow([
-                original_outputs_tot[i],
-                original_confs_tot[i],
-                perturbed_outputs_tot[i],
-                perturbed_confs_tot[i],
-                labels[i]
-            ])
+    # Add epsilon and results to the all_results list
+    for i in range(len(original_outputs_tot)):
+        all_results.append([
+            eps,
+            labels[i],
+            original_outputs_tot[i],
+            original_confs_tot[i],
+            perturbed_outputs_tot[i],
+            perturbed_confs_tot[i],
+            int(original_outputs_tot[i] != perturbed_outputs_tot[i])
+        ])
+
+# Write all results to a single CSV file
+output_file = "combined_results.csv"
+with open(output_file, mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["epsilon", "label","original_class", "original_confidence", "perturbed_class", "perturbed_confidence", "attack_success"])
+    writer.writerows(all_results)
+
 
 print("Done!")
 
