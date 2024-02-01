@@ -220,8 +220,22 @@ class ImageClassifier:
         epsilon (strength of attack) and gradient of the image(s)
         """
         sign_data_grad = data_grad.sign()
-        perturbed_image = image_tensor + epsilon * sign_data_grad
-        return perturbed_image
+        perturbed_image = self.denormalize(image_tensor) + epsilon * sign_data_grad
+        perturbed_image = torch.clamp(perturbed_image, 0, 1)
+        return self.normalize(perturbed_image)
+    
+    def denormalize(self, image_tensor):
+        # Denormalize the image tensor
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+        
+        img = image_tensor.mul(std).add(mean)    # Denormalize
+        img = img.clamp(0, 1)                    # Clamp the values to be between 0 and 1
+        return img
+    
+    def normalize(self, image_tensor):
+        preprocess = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        return preprocess(image_tensor)
     
     def bim_attack(self, original_image, max_epsilon, data_grad, labels, num_iterations):
         """
