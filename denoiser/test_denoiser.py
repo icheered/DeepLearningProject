@@ -25,11 +25,11 @@ def postprocess_image(image):
     return image
 
 # Load the model
-model = load_model("denoiser_model_epoch06.keras")
+model = load_model("denoiser_model_epoch01.keras")
 
 
 # List all files in the poisoned_images_dir
-poisoned_images_dir = "poisoned_data"
+poisoned_images_dir = "../poisoned_data"
 all_images = [f for f in os.listdir(poisoned_images_dir) if os.path.isfile(os.path.join(poisoned_images_dir, f))]
 if not all_images:
     raise ValueError("No images found in the directory")
@@ -40,11 +40,11 @@ image_path = os.path.join(poisoned_images_dir, random_image_name)
 
 # Open the file poisoned_data.csv to find the matching original clean image
 original_image_path = None
-with open("poisoned_data.csv", "r") as f:
+with open("../poisoned_data.csv", "r") as f:
     reader = csv.reader(f)
     for row in reader:
         if row[1] == random_image_name:
-            original_image_path = os.path.join("dataset/images", row[0])
+            original_image_path = os.path.join("../dataset/images", row[0])
             break
 
 if not original_image_path:
