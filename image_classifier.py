@@ -340,6 +340,64 @@ class ImageClassifier:
         effective_epsilon = (perturbed_image - original_image).abs().max()
         return perturbed_image, effective_epsilon.item(), i, prediction
     
+
+    def adam_attack(self, image_path, epsilon, T, eta=1e-8):
+        alpha = epsilon / T
+        y = self.get_label(image_path)
+        image_tensor = self.get_img_tensor(image_path)
+        image_t0 = self.denormalize(image_tensor)
+        image_t = image_t0.clone()
+        # image_t = image_t.detach()
+        # image_t.requires_grad = True
+        g0 = 0 # Redundant
+        m0 = 0 # Redundant
+        v0 = 0 # Redundant
+        dt = 0
+        beta1 = 0.9
+        beta2 = 0.999
+
+        # Step 3 - Iterate over time
+        for t in range(1, T):
+            # Step 4 - Find gradient value of step t
+            if t == 1:
+                gt = self.get_grad(image_t0, self.classify_image(image_t0), y)
+            else:
+                gt = self.get_grad(image_t, self.classify_perturbed_image(image_t), y)
+
+            # Step 5 & 6- Update biased first and second moment estimate
+            if t == 1:
+                mt = (1-beta1) * gt
+                vt = (1-beta2) * torch.square(gt)
+            else: 
+                mt = beta1 * mt + (1-beta1) * gt
+                vt = beta2 * vt + (1-beta2) * torch.square(gt)
+
+            # Step 7 & 8 - Compute bias-corrected first and second raw moment estimate
+            
+            mt_hat = mt / (1- beta1 ** t)
+            vt_hat = vt / (1- beta2 ** t)
+
+            # Step 9 - Obtain pertubation direction
+            dt = mt_hat / (torch.sqrt(vt_hat) + eta)
+
+            # Step 10 - Normalize and scale pertubation vector
+            n = torch.prod(torch.tensor(dt.shape))
+            
+            dt_hat =  n * dt / torch.norm(dt, p=1)
+
+            # Step 11 - Apply pertubation and clip
+            if t == 1:
+                image_t = torch.clip(image_t0 + alpha * dt_hat, 0, 1) # Correct clipping bounds
+            else:
+                image_t = torch.clip(image_t + alpha * dt_hat, 0, 1) # Correct clipping bounds
+
+        perturbed_image_tensor = self.normalize(image_t)
+        effective_epsilon = (perturbed_image_tensor - image_tensor).abs().max()
+        steps = T
+        classification = self.classify_perturbed_image(perturbed_image_tensor)
+        return perturbed_image_tensor, effective_epsilon.item(), steps, classification
+        
+    
     def tensor_to_image(self, image_tensor):
         """
         Returns a PIL image from the provided image tensor

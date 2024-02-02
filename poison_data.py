@@ -73,23 +73,23 @@ for i in tqdm(range(0, number_of_images)):
     cur_original_outputs, cur_original_confs = classifier.decode_predictions(outputs, include_conf=True)
     image_grads = classifier.get_grad(image_tensors, outputs, cur_labels)
 
-    # Apply FGSM attack
-    #epsilons = [0.01, 0.02, 0.03, 0.04, 0.05]
-    epsilons = [0.0]
-    for eps in epsilons:
-        perturbed_image_tensors = classifier.fgsm_attack(image_tensors, eps, image_grads)
-        effective_epsilon = (perturbed_image_tensors - image_tensors).abs().max()
-        # Save poisoned image
-        for j in range(len(cur_image_paths)): 
-            # Original image path is the full path, I only want the filename
-            print(type(perturbed_image_tensors))
-            print(perturbed_image_tensors.shape)
-            outputs = classifier.classify_image(perturbed_image_tensors)
+    # # Apply FGSM attack
+    # #epsilons = [0.01, 0.02, 0.03, 0.04, 0.05]
+    # epsilons = [0.0]
+    # for eps in epsilons:
+    #     perturbed_image_tensors = classifier.fgsm_attack(image_tensors, eps, image_grads)
+    #     effective_epsilon = (perturbed_image_tensors - image_tensors).abs().max()
+    #     # Save poisoned image
+    #     for j in range(len(cur_image_paths)): 
+    #         # Original image path is the full path, I only want the filename
+    #         print(type(perturbed_image_tensors))
+    #         print(perturbed_image_tensors.shape)
+    #         outputs = classifier.classify_image(perturbed_image_tensors)
 
-            exit()
-            _, predicted = outputs.max(1)
-            prediction = predicted.item() + 1 # For some reason classifyer is off by 1
-            save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], f"FGSM_{eps}", eps, steps=1, prediction=prediction)
+    #         exit()
+    #         _, predicted = outputs.max(1)
+    #         prediction = predicted.item() + 1 # For some reason classifyer is off by 1
+    #         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], f"FGSM_{eps}", eps, steps=1, prediction=prediction)
 
 
     # # Apply BIM attack
@@ -106,6 +106,16 @@ for i in tqdm(range(0, number_of_images)):
     # for j in range(len(cur_image_paths)): 
     #     save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "PGD", effective_epsilon, steps, prediction)
 
+
+    # Apply ADAM-FGSM attack
+    max_epsilon = 0.1
+    T = 10
+    perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.adam_attack(cur_image_paths[0], max_epsilon, T)
+    for j in range(len(cur_image_paths)): 
+        save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "ADAM-FGSM", effective_epsilon, steps, prediction)
+
+
     # Show comparison
     # perturbed_outputs = classifier.classify_perturbed_image(perturbed_image_tensors)
     # classifier.show_comparison(image_tensors, perturbed_image_tensors, outputs, perturbed_outputs, cur_labels[0])
+    # exit()
