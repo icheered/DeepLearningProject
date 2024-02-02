@@ -45,7 +45,6 @@ def save_image(original_filename, image_tensor, label, attack_type, epsilon, ste
     # original_filename,poisoned_filename,label,attack_type,epsilon
     with open(poisoned_data_csv, "a") as f:
         f.write(f"{original_filename},{poisoned_filename},{label},{attack_type},{epsilon:.3f},{steps},{prediction},{str(prediction) != str(label)}\n")
-    exit()
 
 # Loop through images
 number_of_images =  len(image_paths)
