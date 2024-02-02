@@ -45,6 +45,7 @@ def save_image(original_filename, image_tensor, label, attack_type, epsilon, ste
     # original_filename,poisoned_filename,label,attack_type,epsilon
     with open(poisoned_data_csv, "a") as f:
         f.write(f"{original_filename},{poisoned_filename},{label},{attack_type},{epsilon:.3f},{steps},{prediction},{str(prediction) != str(label)}\n")
+    exit()
 
 # Loop through images
 number_of_images =  len(image_paths)
@@ -111,6 +112,7 @@ for i in tqdm(range(0, number_of_images)):
     max_epsilon = 0.1
     T = 10
     perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.adam_attack(cur_image_paths[0], max_epsilon, T)
+    print(perturbed_image_tensors.shape)
     for j in range(len(cur_image_paths)): 
         save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "ADAM-FGSM", effective_epsilon, steps, prediction)
 

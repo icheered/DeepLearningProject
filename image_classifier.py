@@ -394,8 +394,13 @@ class ImageClassifier:
         perturbed_image_tensor = self.normalize(image_t)
         effective_epsilon = (perturbed_image_tensor - image_tensor).abs().max()
         steps = T
-        classification = self.classify_perturbed_image(perturbed_image_tensor)
-        return perturbed_image_tensor, effective_epsilon.item(), steps, classification
+        
+        # Classify the perturbed image
+        outputs = self.classify_image(perturbed_image_tensor)
+        _, predicted = outputs.max(1)
+        prediction = predicted.item() + 1
+
+        return perturbed_image_tensor, effective_epsilon.item(), steps, prediction
         
     
     def tensor_to_image(self, image_tensor):
