@@ -28,8 +28,6 @@ def postprocess_image(image):
     image = (255 * image).astype(np.uint8)
     return image
 
-
-
 # Get classification rates for every attack type from poisoned_data.csv
 poisoned_data_csv = "poisoned_data.csv"
 df = pd.read_csv(poisoned_data_csv)
@@ -104,10 +102,18 @@ for i in tqdm(range(0, len(all_images))):
     denoised_image = denoised_image.squeeze()
 
     # Post-process the image
-    denoised_image = postprocess_image(denoised_image)
+    denoised_image = postprocess_image(np.array(denoised_image))
+
+    denoised_image_tensor = torch.from_numpy(denoised_image).float()
+
+    # Permute the dimensions to get [C, H, W]
+    denoised_image_tensor = denoised_image_tensor.permute(2, 0, 1)  # From (H, W, C) to (C, H, W)
+
+    # Add a batch dimension to get [B, C, H, W]
+    denoised_image_tensor = denoised_image_tensor.unsqueeze(0)  # From (C, H, W) to (1, C, H, W)
 
     # Classify the denoised image
-    outputs = classifier.classify_image(denoised_image)
+    outputs = classifier.classify_image(denoised_image_tensor)
     _, predicted = outputs.max(1)
     prediction = predicted.item() + 1 # For some reason classifyer is off by 1
 

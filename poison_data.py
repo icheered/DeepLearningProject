@@ -82,7 +82,11 @@ for i in tqdm(range(0, number_of_images)):
         # Save poisoned image
         for j in range(len(cur_image_paths)): 
             # Original image path is the full path, I only want the filename
+            print(type(perturbed_image_tensors))
+            print(perturbed_image_tensors.shape)
             outputs = classifier.classify_image(perturbed_image_tensors)
+
+            exit()
             _, predicted = outputs.max(1)
             prediction = predicted.item() + 1 # For some reason classifyer is off by 1
             save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], f"FGSM_{eps}", eps, steps=1, prediction=prediction)
