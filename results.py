@@ -59,8 +59,9 @@ plt.plot(epsilons, perturbed_num_correct, marker='o')
 plt.title('Correct classification (%) under FSGM attack vs. epsilon')
 plt.xlabel('Epsilon')
 plt.ylabel('Percentage correctly classified images')
-# plt.legend()
 plt.grid(True)
+# Save image to file
+plt.savefig('correct_classification_vs_epsilon.png')
 
 
 # Plotting org_mean_conf vs. epsilons with confidence bands
@@ -79,4 +80,6 @@ plt.xlabel('Epsilon')
 plt.ylabel('Mean confidence')
 plt.legend()
 plt.grid(True)
-plt.show()
+# Save image to file
+plt.savefig('mean_confidence_vs_epsilon.png')
+

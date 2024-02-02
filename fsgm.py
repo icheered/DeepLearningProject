@@ -333,12 +333,19 @@ class ImageClassifier:
         act_class = self.categories[int(label)-1]
 
         # Display the image
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        # Tight whitespace
+        plt.tight_layout()
+
         axes[0].imshow(original_img)
         axes[0].axis('off')
-        # axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
+        axes[0].set_title("Original image")
+        ##axes[0].set_title(f"Predicted class: {original_pred_class} ({original_conf:.3f}). Actual class: {act_class}")
         
         axes[1].imshow(perturbed_img)
         axes[1].axis('off')
-        # axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
-        plt.show()
+        axes[1].set_title("Attacked image")
+        #axes[1].set_title(f"Predicted class: {perturbed_pred_class} ({perturbed_conf:.3f})")
+        # save figure
+        plt.savefig('comparison.png')
+        #plt.show()
