@@ -19,18 +19,18 @@ image_paths, labels = classifier.get_image_paths(include_labels=True)
 poisoned_data_folder = "poisoned_data"
 poisoned_data_csv = "poisoned_data.csv"
 
-os.makedirs(poisoned_data_folder, exist_ok=True)
-with open(poisoned_data_csv, "w") as f:
-    f.write("original_filename,poisoned_filename,label,attack_type,epsilon,steps,prediction,success\n")
+# os.makedirs(poisoned_data_folder, exist_ok=True)
+# with open(poisoned_data_csv, "w") as f:
+#     f.write("original_filename,poisoned_filename,label,attack_type,epsilon,steps,prediction,success\n")
 
-# If cmd argument "clean" is given, empty the poisoned_data folder
-if len(sys.argv) > 1 and sys.argv[1] == "clean":
-    print("CLEANING POISONED_DATA FOLDER")
-    remove_counter = 0
-    for filename in os.listdir(poisoned_data_folder):
-        os.remove(os.path.join(poisoned_data_folder, filename))
-        remove_counter += 1
-    print(f"Removed {remove_counter} files from {poisoned_data_folder}")
+# # If cmd argument "clean" is given, empty the poisoned_data folder
+# if len(sys.argv) > 1 and sys.argv[1] == "clean":
+#     print("CLEANING POISONED_DATA FOLDER")
+#     remove_counter = 0
+#     for filename in os.listdir(poisoned_data_folder):
+#         os.remove(os.path.join(poisoned_data_folder, filename))
+#         remove_counter += 1
+#     print(f"Removed {remove_counter} files from {poisoned_data_folder}")
 
 def save_image(original_filename, image_tensor, label, attack_type, epsilon, steps, prediction):
     # Make a random filename of 20 random characters and numbers
@@ -74,7 +74,8 @@ for i in tqdm(range(0, number_of_images)):
     image_grads = classifier.get_grad(image_tensors, outputs, cur_labels)
 
     # Apply FGSM attack
-    epsilons = [0.01, 0.02, 0.03, 0.04, 0.05]
+    #epsilons = [0.01, 0.02, 0.03, 0.04, 0.05]
+    epsilons = [0.0]
     for eps in epsilons:
         perturbed_image_tensors = classifier.fgsm_attack(image_tensors, eps, image_grads)
         effective_epsilon = (perturbed_image_tensors - image_tensors).abs().max()
@@ -87,19 +88,19 @@ for i in tqdm(range(0, number_of_images)):
             save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], f"FGSM_{eps}", eps, steps=1, prediction=prediction)
 
 
-    # Apply BIM attack
-    max_epsilon = 0.05
-    num_iterations = 10
-    perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.bim_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
-    for j in range(len(cur_image_paths)): 
-        save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "BIM", effective_epsilon, steps, prediction)
+    # # Apply BIM attack
+    # max_epsilon = 0.05
+    # num_iterations = 10
+    # perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.bim_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
+    # for j in range(len(cur_image_paths)): 
+    #     save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "BIM", effective_epsilon, steps, prediction)
 
-    # # Apply PGD attack
-    max_epsilon = 0.05
-    num_iterations = 10
-    perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.pgd_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
-    for j in range(len(cur_image_paths)): 
-        save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "PGD", effective_epsilon, steps, prediction)
+    # # # Apply PGD attack
+    # max_epsilon = 0.05
+    # num_iterations = 10
+    # perturbed_image_tensors, effective_epsilon, steps, prediction = classifier.pgd_attack(image_tensors, max_epsilon, image_grads, cur_labels, num_iterations)
+    # for j in range(len(cur_image_paths)): 
+    #     save_image(cur_image_paths[j].split("/")[-1], perturbed_image_tensors[j], cur_labels[j], "PGD", effective_epsilon, steps, prediction)
 
     # Show comparison
     # perturbed_outputs = classifier.classify_perturbed_image(perturbed_image_tensors)

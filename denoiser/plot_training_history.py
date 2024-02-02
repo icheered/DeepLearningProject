@@ -7,8 +7,9 @@ with open('batch_training_history.pkl', 'rb') as file_pi:
 
 # Plot the training loss and validation loss
 plt.plot(history['loss'], label='Training Loss')
-plt.title('Model Loss Over Epochs')
+plt.title('Model Loss Over Training')
 plt.ylabel('Loss')
-plt.xlabel('Epoch')
+plt.xlabel('Training step')
 plt.legend()
-plt.show()
+#plt.show()
+plt.savefig('training_loss.png')
