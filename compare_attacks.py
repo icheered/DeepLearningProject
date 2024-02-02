@@ -46,14 +46,18 @@ for attack_type in attack_types:
 # Plot the number of correctly classified images for each attack type using plt
 
 attack_stats_df = pd.DataFrame(attack_stats)
-attack_stats_df.plot.bar(x="attack_type", y="success_rate", rot=0)
+# Print the data to terminal
+print(attack_stats_df)
+
+
+#attack_stats_df.plot.bar(x="attack_type", y="success_rate", rot=0)
 # Limit to betwen 0.7 and 1
-plt.ylim(0.7, 1)
+#plt.ylim(0.7, 1)
 
 
 # Plot the average epsilon for each attack type using plt
-attack_stats_df.plot.bar(x="attack_type", y="avg_epsilon", rot=0)
+#attack_stats_df.plot.bar(x="attack_type", y="avg_epsilon", rot=0)
 
 # Plot the average steps for each attack type using plt
-attack_stats_df.plot.bar(x="attack_type", y="avg_steps", rot=0)
-plt.show()
+#attack_stats_df.plot.bar(x="attack_type", y="avg_steps", rot=0)
+#plt.show()

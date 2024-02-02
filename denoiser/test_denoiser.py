@@ -65,21 +65,24 @@ denoised_image = denoised_image.squeeze()
 # Post-process the image
 denoised_image = postprocess_image(denoised_image)
 
+effective_epsilon_poisoned = np.max(np.abs((img_to_array(noisy_image)/255.0 - img_to_array(original_image)/255.0)))
+effective_epsilon_denoised = np.max(np.abs((img_to_array(denoised_image)/255.0 - img_to_array(original_image)/255.0)))
+
 # Display the original and denoised images
 plt.figure(figsize=(12, 4))
 plt.subplot(1, 3, 1)
-plt.imshow(noisy_image)
-plt.title("Noisy image")
+plt.imshow(original_image)
+plt.title("Original Image")
 plt.axis("off")
 
 plt.subplot(1, 3, 2)
-plt.imshow(denoised_image)
-plt.title("Denoised Image")
+plt.imshow(noisy_image)
+plt.title(f"Noisy image (ε={effective_epsilon_poisoned:.3f})")
 plt.axis("off")
 
 plt.subplot(1, 3, 3)
-plt.imshow(original_image)
-plt.title("Original Image")
+plt.imshow(denoised_image)
+plt.title(f"Denoised Image (ε={effective_epsilon_denoised:.3f})")
 plt.axis("off")
 
 plt.show()
